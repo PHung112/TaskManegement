@@ -51,6 +51,23 @@ public class ProjectService {
         return projectRepository.findAll();
     }
 
+    // Lấy projects mà user đang là thành viên
+    public List<Project> getProjectsByUserId(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        return projectMemberRepository.findByUser(user)
+                .stream()
+                .map(ProjectMember::getProject)
+                .collect(Collectors.toList());
+    }
+
+    // Kiểm tra user có là thành viên của project không
+    public boolean isMember(Long projectId, Long userId) {
+        Project project = projectRepository.findById(projectId).orElse(null);
+        User user = userRepository.findById(userId).orElse(null);
+        if (project == null || user == null) return false;
+        return projectMemberRepository.findByProjectAndUser(project, user).isPresent();
+    }
+
     // Lấy project theo ID
     public Project getProjectById(Long id) {
         return projectRepository.findById(id).orElseThrow(() -> new RuntimeException("Project not found"));

@@ -1,5 +1,6 @@
 package trandinhphihung_project.Task.Manegement.service;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import trandinhphihung_project.Task.Manegement.entity.User;
 import trandinhphihung_project.Task.Manegement.repository.UserRepository;
@@ -10,9 +11,11 @@ import java.util.Optional;
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // Tạo user mới
@@ -20,7 +23,7 @@ public class UserService {
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
-        user.setPassword(password);
+        user.setPassword(passwordEncoder.encode(password));
         return userRepository.save(user);
     }
 
@@ -39,13 +42,22 @@ public class UserService {
         User user = getUserById(id);
         if (username != null) user.setUsername(username);
         if (email != null) user.setEmail(email);
-        if (password != null) user.setPassword(password);
+        if (password != null) user.setPassword(passwordEncoder.encode(password));
         return userRepository.save(user);
     }
 
     // Xóa user
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
+    }
+
+    public User login(String username, String password){
+        User user = userRepository.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản!"));
+        if(!passwordEncoder.matches(password, user.getPassword())){
+            throw new RuntimeException("Sai mật khẩu");
+        }
+        return user;
     }
 }
 
