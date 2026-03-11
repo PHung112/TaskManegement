@@ -7,7 +7,7 @@ const http = axios.create({
 
 // Tự động gắn JWT token vào mỗi request
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,9 +18,9 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("currentUser");
+    if (error.response?.status === 401 && !window.location.pathname.includes("/auth")) {
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("currentUser");
       window.location.href = "/auth";
     }
     return Promise.reject(error);

@@ -16,12 +16,16 @@ public class TaskDTO {
     private String assignedToUsername;
     private String assignedToEmail;
 
+    // Link hoặc file nộp task
+    private String submissionLink;
+
     public TaskDTO() {
     }
 
     public TaskDTO(Long id, String title, String description, String deadline, String status,
                    Long projectId, String projectName,
-                   Long assignedToId, String assignedToUsername, String assignedToEmail) {
+                   Long assignedToId, String assignedToUsername, String assignedToEmail,
+                   String submissionLink) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -32,6 +36,7 @@ public class TaskDTO {
         this.assignedToId = assignedToId;
         this.assignedToUsername = assignedToUsername;
         this.assignedToEmail = assignedToEmail;
+        this.submissionLink = submissionLink;
     }
 
     // Getters & Setters
@@ -113,6 +118,14 @@ public class TaskDTO {
 
     public void setAssignedToEmail(String assignedToEmail) {
         this.assignedToEmail = assignedToEmail;
+    }
+
+    public String getSubmissionLink() {
+        return submissionLink;
+    }
+
+    public void setSubmissionLink(String submissionLink) {
+        this.submissionLink = submissionLink;
     }
 }
 

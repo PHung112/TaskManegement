@@ -9,7 +9,16 @@ const taskApi = {
   updateTask: (id, data) => http.put(`/api/tasks/${id}`, data),
   deleteTask: (id) => http.delete(`/api/tasks/${id}`),
   acceptTask: (taskId, memberId) => http.post(`/api/tasks/${taskId}/accept`, null, { params: { memberId } }),
-  submitTask: (taskId, memberId) => http.post(`/api/tasks/${taskId}/submit`, null, { params: { memberId } }),
+  // submissionLink: string URL, hoặc file: File object
+  submitTask: (taskId, memberId, { submissionLink, file } = {}) => {
+    const formData = new FormData();
+    formData.append("memberId", memberId);
+    if (file) formData.append("file", file);
+    if (submissionLink) formData.append("submissionLink", submissionLink);
+    return http.post(`/api/tasks/${taskId}/submit`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
 };
 
 export default taskApi;

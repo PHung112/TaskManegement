@@ -10,6 +10,8 @@ import trandinhphihung_project.Task.Manegement.repository.ProjectMemberRepositor
 import trandinhphihung_project.Task.Manegement.repository.ProjectRepository;
 import trandinhphihung_project.Task.Manegement.repository.UserRepository;
 
+import trandinhphihung_project.Task.Manegement.repository.TaskRepository;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,11 +20,14 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
 
-    public ProjectService(ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, UserRepository userRepository) {
+    public ProjectService(ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository,
+            UserRepository userRepository, TaskRepository taskRepository) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
+        this.taskRepository = taskRepository;
     }
 
     // Tạo project mới
@@ -64,7 +69,8 @@ public class ProjectService {
     public boolean isMember(Long projectId, Long userId) {
         Project project = projectRepository.findById(projectId).orElse(null);
         User user = userRepository.findById(userId).orElse(null);
-        if (project == null || user == null) return false;
+        if (project == null || user == null)
+            return false;
         return projectMemberRepository.findByProjectAndUser(project, user).isPresent();
     }
 
@@ -88,20 +94,30 @@ public class ProjectService {
     }
 
     // Xóa project
-    public void deleteProject(Long id) {
-        Project project = projectRepository.findById(id).orElseThrow(() -> new RuntimeException("Project not found"));
+    public void deleteProject(Long projectId, Long actorId) {
+        Role actorRole = getMemberRole(projectId, actorId);
+        if (actorRole != Role.ADMIN) {
+            throw new RuntimeException("Chỉ Admin mới có quyền xóa project");
+        }
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+        taskRepository.deleteAll(taskRepository.findByProject(project));
+        projectMemberRepository.deleteAll(projectMemberRepository.findByProject(project));
         projectRepository.delete(project);
     }
 
     // Lấy danh sách members của project
     public List<ProjectMember> getProjectMembers(Long projectId) {
-        Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
         return projectMemberRepository.findByProject(project);
     }
 
     // Lấy danh sách members của project (DTO gọn gàng)
     public List<ProjectMemberDTO> getProjectMembersDTO(Long projectId) {
-        Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
         List<ProjectMember> members = projectMemberRepository.findByProject(project);
 
         return members.stream()
@@ -110,14 +126,14 @@ public class ProjectService {
                         pm.getUser().getId(),
                         pm.getUser().getUsername(),
                         pm.getUser().getEmail(),
-                        pm.getRole().name()
-                ))
+                        pm.getRole().name()))
                 .collect(Collectors.toList());
     }
 
     // Mời thành viên vào project
     public ProjectMember inviteMember(Long projectId, Long userId, String roleStr) {
-        Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
 
         // Kiểm tra member đã tồn tại chưa
@@ -136,27 +152,79 @@ public class ProjectService {
     }
 
     // Xóa member khỏi project
-    public void removeMember(Long projectId, Long userId) {
-        Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+    public void removeMember(Long projectId, Long actorId, Long targetUserId) {
+        if (!actorId.equals(targetUserId)) {
+            Role actorRole = getMemberRole(projectId, actorId);
+            if (actorRole != Role.ADMIN) {
+                throw new RuntimeException(
+                        "Chỉ Admin mới có quyền xóa thành viên khác. Bạn chỉ có thể tự rời project.");
+            }
+        }
 
-        ProjectMember pm = projectMemberRepository.findByProjectAndUser(project, user)
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        ProjectMember pm = projectMemberRepository.findByProjectAndUser(project, targetUser)
                 .orElseThrow(() -> new RuntimeException("Member not found in this project"));
-
         projectMemberRepository.delete(pm);
     }
 
     // Thay đổi role của member
-    public ProjectMember updateMemberRole(Long projectId, Long userId, String roleStr) {
-        Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+    public ProjectMember updateMemberRole(Long projectId, Long actorId, Long targetUserId, String roleStr) {
+        Role actorRole = getMemberRole(projectId, actorId);
+        Role newRole = Role.valueOf(roleStr.toUpperCase());
 
-        ProjectMember pm = projectMemberRepository.findByProjectAndUser(project, user)
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        ProjectMember targetPm = projectMemberRepository.findByProjectAndUser(project, targetUser)
                 .orElseThrow(() -> new RuntimeException("Member not found in this project"));
 
-        Role role = Role.valueOf(roleStr.toUpperCase());
-        pm.setRole(role);
+        Role targetCurrentRole = targetPm.getRole();
 
-        return projectMemberRepository.save(pm);
+        if (actorRole == Role.ADMIN) {
+            // Admin không thể tự hạ cấp mình
+            if (actorId.equals(targetUserId)) {
+                throw new RuntimeException("Admin không thể tự thay đổi vai trò của mình");
+            }
+
+        } else if (actorRole == Role.MANAGER) {
+            // Manager không thể đổi vai trò của chính mình
+            if (actorId.equals(targetUserId)) {
+                throw new RuntimeException("Manager không thể tự thay đổi vai trò của mình");
+            }
+            // Manager không được chỉnh Admin
+            if (targetCurrentRole == Role.ADMIN) {
+                throw new RuntimeException("Manager không có quyền thay đổi vai trò của Admin");
+            }
+            // Manager không được hạ cấp Manager khác (chỉ được nâng MEMBER → MANAGER)
+            if (targetCurrentRole == Role.MANAGER) {
+                throw new RuntimeException("Manager không có quyền thay đổi vai trò của Manager khác");
+            }
+            // Manager chỉ được nâng lên MANAGER
+            if (newRole != Role.MANAGER) {
+                throw new RuntimeException("Manager chỉ có thể nâng cấp Member lên Manager");
+            }
+
+        } else {
+            throw new RuntimeException("Bạn không có quyền thay đổi vai trò thành viên");
+        }
+
+        targetPm.setRole(newRole);
+        return projectMemberRepository.save(targetPm);
+    }
+
+    // Lấy role của user trong project
+    public Role getMemberRole(Long projectId, Long userId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return projectMemberRepository.findByProjectAndUser(project, user)
+                .orElseThrow(() -> new RuntimeException("Member not found"))
+                .getRole();
     }
 }

@@ -2,6 +2,9 @@ package trandinhphihung_project.Task.Manegement.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import trandinhphihung_project.Task.Manegement.entity.User;
 import trandinhphihung_project.Task.Manegement.security.JwtUtil;
 import trandinhphihung_project.Task.Manegement.service.UserService;
@@ -21,7 +24,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@RequestBody @Valid RegisterRequest request) {
         try {
             User user = userService.createUser(request.username, request.email, request.password);
             String token = jwtUtil.generateToken(user.getId(), user.getUsername());
@@ -60,6 +63,7 @@ public class AuthController {
     public static class RegisterRequest {
         public String username;
         public String email;
+        @Size(min = 6, message = "Mật khẩu tối thiếu 6 ký tự")
         public String password;
     }
 }

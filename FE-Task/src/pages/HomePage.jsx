@@ -5,30 +5,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-950 to-slate-900 text-white">
-      {/* Navbar */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center font-bold text-lg">T</div>
-          <span className="text-xl font-bold tracking-tight">TaskFlow</span>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate('/auth')}
-            className="px-4 py-2 text-white/70 hover:text-white transition text-sm font-medium"
-          >
-            Đăng nhập
-          </button>
-          <button
-            onClick={() => navigate('/auth')}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition text-sm font-semibold shadow-lg shadow-purple-500/20"
-          >
-            Bắt đầu ngay →
-          </button>
-        </div>
-      </nav>
 
       {/* Hero Section */}
-      <section className="flex flex-col items-center text-center pt-28 pb-20 px-6">
+      <section className="flex flex-col items-center text-center pt-15 pb-20 px-6">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-500/15 border border-purple-500/25 rounded-full text-purple-300 text-sm mb-8">
           <span className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></span>
           Quản lý dự án thế hệ mới
@@ -149,11 +128,6 @@ export default function HomePage() {
           </button>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-8 text-center text-white/30 text-sm">
-        © 2026 TaskFlow · Built with React + Spring Boot
-      </footer>
     </div>
   )
 }

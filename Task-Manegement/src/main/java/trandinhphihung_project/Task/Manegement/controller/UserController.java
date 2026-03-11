@@ -1,6 +1,9 @@
 package trandinhphihung_project.Task.Manegement.controller;
 
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import trandinhphihung_project.Task.Manegement.entity.User;
 import trandinhphihung_project.Task.Manegement.service.UserService;
 
@@ -16,12 +19,6 @@ public class UserController {
         this.userService = userService;
     }
 
-    // Tạo user mới - nhận JSON từ body
-    @PostMapping
-    public User createUser(@RequestBody CreateUserRequest request) {
-        return userService.createUser(request.username, request.email, request.password);
-    }
-
     // Lấy user theo ID
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
@@ -34,9 +31,15 @@ public class UserController {
         return userService.getAllUsers();
     }
 
+    // Tìm kiếm user theo username
+    @GetMapping("/search")
+    public List<User> searchUsers(@RequestParam String q) {
+        return userService.searchByUsername(q);
+    }
+
     // Cập nhật user - nhận JSON từ body
     @PutMapping("/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
+    public User updateUser(@PathVariable Long id, @RequestBody @Valid UpdateUserRequest request) {
         return userService.updateUser(id, request.username, request.email, request.password);
     }
 
@@ -50,13 +53,14 @@ public class UserController {
     public static class CreateUserRequest {
         public String username;
         public String email;
+        @Size(min = 6, message = "Mật khẩu tối thiếu 6 ký tự")
         public String password;
     }
 
     public static class UpdateUserRequest {
         public String username;
         public String email;
+        @Size(min = 6, message = "Mật khẩu tối thiếu 6 ký tự")
         public String password;
     }
 }
-

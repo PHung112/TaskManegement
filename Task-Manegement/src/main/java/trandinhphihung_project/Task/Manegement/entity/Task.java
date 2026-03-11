@@ -23,14 +23,18 @@ public class Task {
 
     // task được giao cho ai
     @ManyToOne
-    @JoinColumn(name = "assigned_to", nullable = false)
+    @JoinColumn(name = "assigned_to", nullable = true)
     private User assignedTo;
 
     private LocalDate deadline;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TaskStatus status = TaskStatus.ASSIGNED;
+    private TaskStatus status = TaskStatus.TODO;
+
+    // Link hoặc đường dẫn file khi nộp task
+    @Column(name = "submission_link", length = 512)
+    private String submissionLink;
 
     public Task() {}
 
@@ -89,5 +93,13 @@ public class Task {
 
     public void setStatus(TaskStatus status) {
         this.status = status;
+    }
+
+    public String getSubmissionLink() {
+        return submissionLink;
+    }
+
+    public void setSubmissionLink(String submissionLink) {
+        this.submissionLink = submissionLink;
     }
 }

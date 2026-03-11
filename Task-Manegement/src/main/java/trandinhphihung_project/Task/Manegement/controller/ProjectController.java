@@ -17,10 +17,13 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final JwtUtil jwtUtil;
+    private final trandinhphihung_project.Task.Manegement.service.NotificationService notificationService;
 
-    public ProjectController(ProjectService projectService, JwtUtil jwtUtil) {
+    public ProjectController(ProjectService projectService, JwtUtil jwtUtil,
+            trandinhphihung_project.Task.Manegement.service.NotificationService notificationService) {
         this.projectService = projectService;
         this.jwtUtil = jwtUtil;
+        this.notificationService = notificationService;
     }
 
     // Lấy userId từ JWT trong request header
@@ -59,7 +62,7 @@ public class ProjectController {
     // Cập nhật project — chỉ thành viên của project
     @PutMapping("/{id}")
     public ResponseEntity<?> updateProject(@PathVariable Long id, @RequestBody UpdateProjectRequest request,
-                                           HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
         Long userId = getCurrentUserId(httpRequest);
         if (!projectService.isMember(id, userId)) {
             return ResponseEntity.status(403).body("Bạn không có quyền chỉnh sửa project này");
@@ -71,11 +74,12 @@ public class ProjectController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteProject(@PathVariable Long id, HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
-        if (!projectService.isMember(id, userId)) {
-            return ResponseEntity.status(403).body("Bạn không có quyền xóa project này");
+        try {
+            projectService.deleteProject(id, userId);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
-        projectService.deleteProject(id);
-        return ResponseEntity.ok().build();
     }
 
     // Lấy danh sách members của project — chỉ thành viên mới xem được
@@ -88,40 +92,47 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getProjectMembersDTO(projectId));
     }
 
-    // Mời thành viên vào project — chỉ thành viên hiện tại
+    // Mời thành viên vào project — gửi thông báo chờ chấp nhận
     @PostMapping("/{projectId}/invite")
     public ResponseEntity<?> inviteMember(@PathVariable Long projectId,
-                                          @RequestBody InviteMemberRequest request,
-                                          HttpServletRequest httpRequest) {
-        Long userId = getCurrentUserId(httpRequest);
-        if (!projectService.isMember(projectId, userId)) {
+            @RequestBody InviteMemberRequest request,
+            HttpServletRequest httpRequest) {
+        Long senderId = getCurrentUserId(httpRequest);
+        if (!projectService.isMember(projectId, senderId)) {
             return ResponseEntity.status(403).body("Bạn không có quyền mời thành viên");
         }
-        return ResponseEntity.ok(projectService.inviteMember(projectId, request.userId, request.role));
+        try {
+            notificationService.createInviteNotification(projectId, senderId, request.userId, request.role);
+            return ResponseEntity.ok(java.util.Map.of("message", "Lời mời đã được gửi"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     // Xóa member khỏi project — chỉ thành viên hiện tại
     @DeleteMapping("/{projectId}/members/{memberId}")
     public ResponseEntity<?> removeMember(@PathVariable Long projectId, @PathVariable Long memberId,
-                                          HttpServletRequest request) {
+            HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
-        if (!projectService.isMember(projectId, userId)) {
-            return ResponseEntity.status(403).body("Bạn không có quyền xóa thành viên");
+        try {
+            projectService.removeMember(projectId, userId, memberId);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
-        projectService.removeMember(projectId, memberId);
-        return ResponseEntity.ok().build();
     }
 
     // Thay đổi role của member — chỉ thành viên hiện tại
     @PutMapping("/{projectId}/members/{memberId}")
     public ResponseEntity<?> updateMemberRole(@PathVariable Long projectId, @PathVariable Long memberId,
-                                              @RequestBody UpdateMemberRoleRequest request,
-                                              HttpServletRequest httpRequest) {
+            @RequestBody UpdateMemberRoleRequest request,
+            HttpServletRequest httpRequest) {
         Long userId = getCurrentUserId(httpRequest);
-        if (!projectService.isMember(projectId, userId)) {
-            return ResponseEntity.status(403).body("Bạn không có quyền đổi vai trò");
+        try {
+            return ResponseEntity.ok(projectService.updateMemberRole(projectId, userId, memberId, request.role));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
-        return ResponseEntity.ok(projectService.updateMemberRole(projectId, memberId, request.role));
     }
 
     // DTO classes

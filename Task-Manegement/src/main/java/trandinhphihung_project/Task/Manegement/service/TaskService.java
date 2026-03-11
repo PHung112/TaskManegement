@@ -1,8 +1,10 @@
 package trandinhphihung_project.Task.Manegement.service;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import trandinhphihung_project.Task.Manegement.dto.TaskDTO;
 import trandinhphihung_project.Task.Manegement.entity.*;
+import trandinhphihung_project.Task.Manegement.repository.ProjectMemberRepository;
 import trandinhphihung_project.Task.Manegement.repository.TaskRepository;
 import trandinhphihung_project.Task.Manegement.repository.ProjectRepository;
 import trandinhphihung_project.Task.Manegement.repository.UserRepository;
@@ -17,25 +19,38 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
-    public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository, UserRepository userRepository) {
+    public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository,
+                       UserRepository userRepository, ProjectMemberRepository projectMemberRepository) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.projectMemberRepository = projectMemberRepository;
+    }
+
+    // Lấy current user từ JWT SecurityContext
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
     }
 
     // Tạo task mới
     public Task createTask(Long projectId, Long assignedToId, String title, String description, LocalDate deadline) {
         Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
-        User assignedTo = userRepository.findById(assignedToId).orElseThrow(() -> new RuntimeException("User not found"));
 
         Task task = new Task();
         task.setProject(project);
-        task.setAssignedTo(assignedTo);
         task.setTitle(title);
         task.setDescription(description);
         task.setDeadline(deadline);
-        task.setStatus(TaskStatus.ASSIGNED);
+        task.setStatus(TaskStatus.TODO);
+
+        if (assignedToId != null) {
+            User assignedTo = userRepository.findById(assignedToId).orElseThrow(() -> new RuntimeException("User not found"));
+            task.setAssignedTo(assignedTo);
+        }
 
         return taskRepository.save(task);
     }
@@ -62,17 +77,42 @@ public class TaskService {
         return taskRepository.findByAssignedTo(user);
     }
 
-    // Cập nhật task
+    // Cập nhật task - chỉ ADMIN/MANAGER được sửa khi task chưa giao; sau khi đã giao không ai được sửa
     public Task updateTask(Long id, String title, String description, LocalDate deadline) {
         Task task = getTaskById(id);
+        User currentUser = getCurrentUser();
+
+        if (task.getAssignedTo() != null) {
+            // Task đã giao: không ai được sửa
+            throw new RuntimeException("Task đã được giao, không thể chỉnh sửa");
+        }
+
+        // Task chưa giao: chỉ ADMIN/MANAGER của project mới được sửa
+        ProjectMember pm = projectMemberRepository
+                .findByProjectAndUser(task.getProject(), currentUser)
+                .orElseThrow(() -> new RuntimeException("Bạn không phải thành viên dự án này"));
+        if (pm.getRole() == Role.MEMBER) {
+            throw new RuntimeException("Chỉ ADMIN/MANAGER mới được chỉnh sửa task");
+        }
+
         if (title != null) task.setTitle(title);
         if (description != null) task.setDescription(description);
         if (deadline != null) task.setDeadline(deadline);
         return taskRepository.save(task);
     }
 
-    // Xóa task
+    // Xóa task - chỉ ADMIN của project mới xóa được
     public void deleteTask(Long id) {
+        Task task = getTaskById(id);
+        User currentUser = getCurrentUser();
+
+        ProjectMember pm = projectMemberRepository
+                .findByProjectAndUser(task.getProject(), currentUser)
+                .orElseThrow(() -> new RuntimeException("Bạn không phải thành viên dự án này"));
+        if (pm.getRole() != Role.ADMIN) {
+            throw new RuntimeException("Chỉ ADMIN mới được xóa task");
+        }
+
         taskRepository.deleteById(id);
     }
 
@@ -80,7 +120,7 @@ public class TaskService {
     public Task acceptTask(Long taskId, Long memberId) {
         Task task = getTaskById(taskId);
 
-        if (!task.getAssignedTo().getId().equals(memberId)) {
+        if (task.getAssignedTo() == null || !task.getAssignedTo().getId().equals(memberId)) {
             throw new RuntimeException("Member is not assigned to this task");
         }
 
@@ -88,14 +128,17 @@ public class TaskService {
         return taskRepository.save(task);
     }
 
-    // Member nộp task (chuyển sang SUBMITTED)
-    public Task submitTask(Long taskId, Long memberId) {
+    // Member nộp task (chuyển sang SUBMITTED) + lưu link/file
+    public Task submitTask(Long taskId, Long memberId, String submissionLink) {
         Task task = getTaskById(taskId);
 
-        if (!task.getAssignedTo().getId().equals(memberId)) {
+        if (task.getAssignedTo() == null || !task.getAssignedTo().getId().equals(memberId)) {
             throw new RuntimeException("Member is not assigned to this task");
         }
 
+        if (submissionLink != null && !submissionLink.isBlank()) {
+            task.setSubmissionLink(submissionLink.trim());
+        }
         task.setStatus(TaskStatus.SUBMITTED);
         return taskRepository.save(task);
     }
@@ -110,9 +153,10 @@ public class TaskService {
                 task.getStatus().name(),
                 task.getProject().getId(),
                 task.getProject().getName(),
-                task.getAssignedTo().getId(),
-                task.getAssignedTo().getUsername(),
-                task.getAssignedTo().getEmail()
+                task.getAssignedTo() != null ? task.getAssignedTo().getId() : null,
+                task.getAssignedTo() != null ? task.getAssignedTo().getUsername() : null,
+                task.getAssignedTo() != null ? task.getAssignedTo().getEmail() : null,
+                task.getSubmissionLink()
         );
     }
 
@@ -162,8 +206,8 @@ public class TaskService {
     }
 
     // Member nộp task - trả về DTO
-    public TaskDTO submitTaskDTO(Long taskId, Long memberId) {
-        Task task = submitTask(taskId, memberId);
+    public TaskDTO submitTaskDTO(Long taskId, Long memberId, String submissionLink) {
+        Task task = submitTask(taskId, memberId, submissionLink);
         return convertToDTO(task);
     }
 }

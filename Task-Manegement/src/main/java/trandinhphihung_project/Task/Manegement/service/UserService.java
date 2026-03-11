@@ -46,6 +46,11 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    // Tìm kiếm user theo username
+    public List<User> searchByUsername(String keyword) {
+        return userRepository.findByUsernameContainingIgnoreCase(keyword);
+    }
+
     // Xóa user
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
@@ -53,9 +58,9 @@ public class UserService {
 
     public User login(String username, String password){
         User user = userRepository.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản!"));
+            .orElseThrow(() -> new RuntimeException("Tên đăng nhập hoặc Mật khẩu không chính xác!"));
         if(!passwordEncoder.matches(password, user.getPassword())){
-            throw new RuntimeException("Sai mật khẩu");
+            throw new RuntimeException("Tên đăng nhập hoặc Mật khẩu không chính xác!");
         }
         return user;
     }
