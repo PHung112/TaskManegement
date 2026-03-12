@@ -11,6 +11,8 @@ public class NotificationDTO {
     private String status;     // PENDING | ACCEPTED | DECLINED | null
     private boolean read;
     private String createdAt;
+    private Long taskId;
+    private String taskName;
 
     public NotificationDTO() {}
 
@@ -44,4 +46,10 @@ public class NotificationDTO {
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+
+    public Long getTaskId() { return taskId; }
+    public void setTaskId(Long taskId) { this.taskId = taskId; }
+
+    public String getTaskName() { return taskName; }
+    public void setTaskName(String taskName) { this.taskName = taskName; }
 }

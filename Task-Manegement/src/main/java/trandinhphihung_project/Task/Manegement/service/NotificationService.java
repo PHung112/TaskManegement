@@ -5,6 +5,9 @@ import trandinhphihung_project.Task.Manegement.dto.NotificationDTO;
 import trandinhphihung_project.Task.Manegement.entity.*;
 import trandinhphihung_project.Task.Manegement.repository.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,15 +18,65 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final TaskRepository taskRepository;
 
     public NotificationService(NotificationRepository notificationRepository,
                                 UserRepository userRepository,
                                 ProjectRepository projectRepository,
-                                ProjectMemberRepository projectMemberRepository) {
+                                ProjectMemberRepository projectMemberRepository,
+                                TaskRepository taskRepository) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.taskRepository = taskRepository;
+    }
+
+    // ── Thông báo giao task ────────────────────────────────────────────
+    public void createTaskAssignedNotification(Long taskId, String taskTitle,
+                                               Long projectId, String projectName,
+                                               Long assignerId, Long assigneeId) {
+        User assigner = userRepository.findById(assignerId).orElse(null);
+        User assignee = userRepository.findById(assigneeId)
+                .orElseThrow(() -> new RuntimeException("Assignee not found"));
+
+        Notification n = new Notification();
+        n.setRecipient(assignee);
+        n.setSender(assigner);
+        n.setMessage("Bạn có 1 task mới được giao từ "
+                + (assigner != null ? assigner.getUsername() : "hệ thống")
+                + " ở project \"" + projectName + "\": " + taskTitle);
+        n.setType(NotificationType.TASK_ASSIGNED);
+        n.setProjectId(projectId);
+        n.setProjectName(projectName);
+        n.setTaskId(taskId);
+        n.setTaskName(taskTitle);
+        n.setRead(false);
+        notificationRepository.save(n);
+    }
+
+    // ── Thông báo nhận task ────────────────────────────────────────────
+    public void createTaskAcceptedNotification(Long taskId, String taskTitle,
+                                               Long projectId, String projectName,
+                                               Long acceptorId, Long originalAssignerId) {
+        if (originalAssignerId == null) return;
+        User acceptor = userRepository.findById(acceptorId).orElse(null);
+        User assigner = userRepository.findById(originalAssignerId)
+                .orElseThrow(() -> new RuntimeException("Assigner not found"));
+
+        Notification n = new Notification();
+        n.setRecipient(assigner);
+        n.setSender(acceptor);
+        n.setMessage((acceptor != null ? acceptor.getUsername() : "Thành viên")
+                + " đã nhận task \"" + taskTitle
+                + "\" ở project \"" + projectName + "\"");
+        n.setType(NotificationType.TASK_ACCEPTED);
+        n.setProjectId(projectId);
+        n.setProjectName(projectName);
+        n.setTaskId(taskId);
+        n.setTaskName(taskTitle);
+        n.setRead(false);
+        notificationRepository.save(n);
     }
 
     // ── Gửi lời mời ──────────────────────────────────────────────────────────
@@ -148,6 +201,38 @@ public class NotificationService {
         return notificationRepository.countByRecipientAndReadFalse(user);
     }
 
+    // ── Nhắc nhở deadline sắp đến (chạy mỗi ngày, gọi từ DeadlineScheduler) ──
+    public void sendDeadlineReminders() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        List<TaskStatus> doneStatuses = Arrays.asList(TaskStatus.SUBMITTED, TaskStatus.DONE);
+
+        List<Task> tasks = taskRepository.findByDeadlineAndAssignedToIsNotNullAndStatusNotIn(
+                tomorrow, doneStatuses);
+
+        for (Task task : tasks) {
+            User recipient = task.getAssignedTo();
+            // Tránh gửi thông báo trùng trong cùng 1 ngày
+            boolean alreadySent = notificationRepository.existsByRecipientAndTypeAndTaskIdAndCreatedAtAfter(
+                    recipient, NotificationType.DEADLINE_REMINDER, task.getId(), startOfToday);
+            if (alreadySent) continue;
+
+            Notification n = new Notification();
+            n.setRecipient(recipient);
+            n.setMessage("Task \"" + task.getTitle()
+                    + "\" ở project \"" + task.getProject().getName()
+                    + "\" sẽ hết hạn vào ngày " + tomorrow
+                    + ", hãy nhanh chóng hoàn thành!");
+            n.setType(NotificationType.DEADLINE_REMINDER);
+            n.setProjectId(task.getProject().getId());
+            n.setProjectName(task.getProject().getName());
+            n.setTaskId(task.getId());
+            n.setTaskName(task.getTitle());
+            n.setRead(false);
+            notificationRepository.save(n);
+        }
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
     private NotificationDTO convertToDTO(Notification n) {
         NotificationDTO dto = new NotificationDTO();
@@ -161,6 +246,8 @@ public class NotificationService {
         dto.setStatus(n.getStatus() != null ? n.getStatus().name() : null);
         dto.setRead(n.isRead());
         dto.setCreatedAt(n.getCreatedAt() != null ? n.getCreatedAt().toString() : null);
+        dto.setTaskId(n.getTaskId());
+        dto.setTaskName(n.getTaskName());
         return dto;
     }
 }

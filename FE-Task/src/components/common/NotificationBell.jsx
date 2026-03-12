@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import notificationApi from "../../api/notificationApi";
 
 function timeAgo(isoString) {
@@ -11,6 +12,7 @@ function timeAgo(isoString) {
 }
 
 export default function NotificationBell() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +99,12 @@ export default function NotificationBell() {
     }
   };
 
+  const handleTaskNotificationClick = async (n) => {
+    await handleMarkRead(n);
+    setIsOpen(false);
+    navigate(`/projects?goto=${n.projectId}`);
+  };
+
   return (
     <div ref={dropdownRef} className="relative">
       {/* Bell button */}
@@ -135,7 +143,11 @@ export default function NotificationBell() {
               notifications.map((n) => (
                 <div
                   key={n.id}
-                  onClick={() => handleMarkRead(n)}
+                  onClick={() =>
+                    n.type === "TASK_ASSIGNED" || n.type === "TASK_ACCEPTED" || n.type === "DEADLINE_REMINDER"
+                      ? handleTaskNotificationClick(n)
+                      : handleMarkRead(n)
+                  }
                   className={`px-4 py-3 border-b border-white/5 cursor-pointer hover:bg-white/5 transition ${
                     !n.read ? "bg-purple-900/20" : ""
                   }`}
@@ -170,6 +182,12 @@ export default function NotificationBell() {
                       )}
                       {n.type === "INVITE" && n.status === "DECLINED" && (
                         <span className="mt-1 inline-block text-xs text-red-400">✗ Đã từ chối</span>
+                      )}
+                      {(n.type === "TASK_ASSIGNED" || n.type === "TASK_ACCEPTED") && (
+                        <span className="mt-1 inline-block text-xs text-purple-400/70">→ Xem task</span>
+                      )}
+                      {n.type === "DEADLINE_REMINDER" && (
+                        <span className="mt-1 inline-block text-xs text-orange-400/80">⏰ → Xem task</span>
                       )}
                     </div>
                   </div>

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import projectApi from "../api/projectApi";
 import taskApi from "../api/taskApi";
 import userApi from "../api/userApi";
+import http from "../api/axiosConfig";
 
 import ProjectSidebar from "../components/projects/ProjectSidebar";
 import ProjectDetail from "../components/projects/ProjectDetail";
@@ -16,9 +17,11 @@ import EditTaskModal from "../components/projects/modals/EditTaskModal";
 import ConfirmLeaveModal from "../components/projects/modals/ConfirmLeaveModal";
 import SubmitTaskModal from "../components/projects/modals/SubmitTaskModal";
 import TransferAdminModal from "../components/projects/modals/TransferAdminModal";
+import ConfirmModal from "../components/common/ConfirmModal";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState(null);
 
   // Data
@@ -75,6 +78,18 @@ export default function ProjectsPage() {
   }, []);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
+
+  // Auto-select project from ?goto=id URL param (from notification click)
+  useEffect(() => {
+    const gotoId = searchParams.get("goto");
+    if (!gotoId || projects.length === 0) return;
+    const target = projects.find((p) => String(p.id) === gotoId);
+    if (target) {
+      selectProject(target);
+      setActiveTab("tasks");
+      setSearchParams({}, { replace: true }); // clean up URL
+    }
+  }, [searchParams, projects]);
 
   // Listen for invite accepted (from NotificationBell) → reload projects
   useEffect(() => {
@@ -239,6 +254,29 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleConfirmDownload = async () => {
+    const { submissionLink, title } = modalData;
+    setModal(null);
+    if (!submissionLink) return;
+    if (submissionLink.startsWith("/api/files/")) {
+      try {
+        const res = await http.get(submissionLink, { responseType: "blob" });
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = submissionLink.split("/").pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        alert("Tải file thất bại.");
+      }
+    } else {
+      window.open(submissionLink, "_blank", "noopener,noreferrer");
+    }
+  };
+
   const myRole = members.find((m) => m.userId === currentUser?.id)?.role;
   if (!currentUser) return null;
 
@@ -279,7 +317,9 @@ export default function ProjectsPage() {
               onOpenLeave={() => openModal("confirmLeave")}
               onOpenTransfer={() => { setTransferTarget(""); openModal("transferAdmin"); }}
               onOpenInviteMember={() => openModal("inviteMember")}
-              onRemoveMember={handleRemoveMember}
+              onOpenConfirmKick={(userId, username) =>
+                openModal("confirmKickMember", { userId, username })
+              }
               onOpenEditRole={(userId, role) => { setRoleForm({ role }); openModal("editRole", { userId }); }}
               onOpenCreateTask={() => {
                 setTaskForm({ title: "", description: "", deadline: "", assignedToId: "" });
@@ -289,13 +329,18 @@ export default function ProjectsPage() {
                 setTaskForm({ title: task.title, description: task.description || "", deadline: task.deadline || "", assignedToId: "" });
                 openModal("editTask", { taskId: task.id });
               }}
-              onDeleteTask={handleDeleteTask}
+              onOpenConfirmDeleteTask={(taskId, title) =>
+                openModal("confirmDeleteTask", { taskId, title })
+              }
               onAcceptTask={handleAcceptTask}
               onOpenSubmitTask={(taskId) => {
                 setSubmitForm({ link: "", file: null, taskId });
                 setFormError("");
                 setModal("submitTask");
               }}
+              onOpenDownloadConfirm={(link, title) =>
+                openModal("confirmDownload", { submissionLink: link, title })
+              }
             />
           )}
         </main>
@@ -364,6 +409,34 @@ export default function ProjectsPage() {
           members={members} currentUserId={currentUser.id}
           transferTarget={transferTarget} setTransferTarget={setTransferTarget}
           onSubmit={handleAdminLeave} onClose={() => setModal(null)} formError={formError}
+        />
+      )}
+      {modal === "confirmKickMember" && (
+        <ConfirmModal
+          title="Kick thành viên"
+          message={`Bạn có chắc chắn muốn xóa ${modalData.username ?? "thành viên này"} khỏi project?`}
+          confirmLabel="Kick"
+          onConfirm={() => { setModal(null); handleRemoveMember(modalData.userId); }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === "confirmDeleteTask" && (
+        <ConfirmModal
+          title="Xóa task"
+          message={`Bạn có chắc chắn muốn xóa task "${modalData.title ?? ""}"? Hành động này không thể hoàn tác.`}
+          confirmLabel="Xóa"
+          onConfirm={() => { setModal(null); handleDeleteTask(modalData.taskId); }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === "confirmDownload" && (
+        <ConfirmModal
+          title="Tải về bài nộp"
+          message={`Bạn có muốn tải về bài nộp của task "${modalData.title ?? ""}"?`}
+          confirmLabel="Tải về"
+          danger={false}
+          onConfirm={handleConfirmDownload}
+          onClose={() => setModal(null)}
         />
       )}
     </div>

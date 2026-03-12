@@ -35,6 +35,12 @@ public class Notification {
     @Column(name = "invite_role", length = 20)
     private String inviteRole;
 
+    @Column(name = "task_id")
+    private Long taskId;
+
+    @Column(name = "task_name", length = 255)
+    private String taskName;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private NotificationStatus status; // chỉ dùng cho INVITE
@@ -78,6 +84,12 @@ public class Notification {
 
     public boolean isRead() { return read; }
     public void setRead(boolean read) { this.read = read; }
+
+    public Long getTaskId() { return taskId; }
+    public void setTaskId(Long taskId) { this.taskId = taskId; }
+
+    public String getTaskName() { return taskName; }
+    public void setTaskName(String taskName) { this.taskName = taskName; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

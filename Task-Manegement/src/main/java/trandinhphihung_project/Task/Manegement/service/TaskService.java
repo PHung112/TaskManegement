@@ -10,6 +10,7 @@ import trandinhphihung_project.Task.Manegement.repository.ProjectRepository;
 import trandinhphihung_project.Task.Manegement.repository.UserRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,13 +21,16 @@ public class TaskService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final NotificationService notificationService;
 
     public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository,
-                       UserRepository userRepository, ProjectMemberRepository projectMemberRepository) {
+                       UserRepository userRepository, ProjectMemberRepository projectMemberRepository,
+                       NotificationService notificationService) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.notificationService = notificationService;
     }
 
     // Lấy current user từ JWT SecurityContext
@@ -40,6 +44,10 @@ public class TaskService {
     public Task createTask(Long projectId, Long assignedToId, String title, String description, LocalDate deadline) {
         Project project = projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"));
 
+        if (deadline != null && !deadline.isAfter(LocalDate.now())) {
+            throw new RuntimeException("Deadline phải ít nhất là ngày mai");
+        }
+
         Task task = new Task();
         task.setProject(project);
         task.setTitle(title);
@@ -52,7 +60,18 @@ public class TaskService {
             task.setAssignedTo(assignedTo);
         }
 
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+
+        // Gửi thông báo cho người được giao task
+        if (assignedToId != null) {
+            User currentUser = getCurrentUser();
+            notificationService.createTaskAssignedNotification(
+                    saved.getId(), saved.getTitle(),
+                    project.getId(), project.getName(),
+                    currentUser.getId(), assignedToId);
+        }
+
+        return saved;
     }
 
     // Lấy task theo ID
@@ -81,6 +100,10 @@ public class TaskService {
     public Task updateTask(Long id, String title, String description, LocalDate deadline) {
         Task task = getTaskById(id);
         User currentUser = getCurrentUser();
+
+        if (deadline != null && !deadline.isAfter(LocalDate.now())) {
+            throw new RuntimeException("Deadline phải ít nhất là ngày mai");
+        }
 
         if (task.getAssignedTo() != null) {
             // Task đã giao: không ai được sửa
@@ -125,7 +148,23 @@ public class TaskService {
         }
 
         task.setStatus(TaskStatus.IN_PROGRESS);
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+
+        // Gửi thông báo cho người đã giao task (lấy current user qua SecurityContext)
+        try {
+            User acceptor = getCurrentUser();
+            // Tìm ADMIN của project để thông báo
+            projectMemberRepository.findByProject(task.getProject()).stream()
+                    .filter(pm -> pm.getRole() == Role.ADMIN)
+                    .map(pm -> pm.getUser().getId())
+                    .findFirst()
+                    .ifPresent(adminId -> notificationService.createTaskAcceptedNotification(
+                            saved.getId(), saved.getTitle(),
+                            task.getProject().getId(), task.getProject().getName(),
+                            acceptor.getId(), adminId));
+        } catch (Exception ignored) {}
+
+        return saved;
     }
 
     // Member nộp task (chuyển sang SUBMITTED) + lưu link/file
@@ -139,13 +178,16 @@ public class TaskService {
         if (submissionLink != null && !submissionLink.isBlank()) {
             task.setSubmissionLink(submissionLink.trim());
         }
+        task.setSubmittedAt(LocalDateTime.now());
         task.setStatus(TaskStatus.SUBMITTED);
         return taskRepository.save(task);
     }
 
     // Helper method: Convert Task sang TaskDTO
     private TaskDTO convertToDTO(Task task) {
-        return new TaskDTO(
+        boolean late = task.getDeadline() != null && task.getSubmittedAt() != null
+                && task.getSubmittedAt().toLocalDate().isAfter(task.getDeadline());
+        TaskDTO dto = new TaskDTO(
                 task.getId(),
                 task.getTitle(),
                 task.getDescription(),
@@ -158,6 +200,9 @@ public class TaskService {
                 task.getAssignedTo() != null ? task.getAssignedTo().getEmail() : null,
                 task.getSubmissionLink()
         );
+        dto.setSubmittedAt(task.getSubmittedAt() != null ? task.getSubmittedAt().toString() : null);
+        dto.setLate(late);
+        return dto;
     }
 
     // Tạo task mới - trả về DTO

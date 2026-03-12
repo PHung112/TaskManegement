@@ -6,6 +6,7 @@ import trandinhphihung_project.Task.Manegement.entity.NotificationStatus;
 import trandinhphihung_project.Task.Manegement.entity.NotificationType;
 import trandinhphihung_project.Task.Manegement.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,4 +15,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByRecipientAndReadFalse(User recipient);
     Optional<Notification> findByRecipientAndProjectIdAndTypeAndStatus(
             User recipient, Long projectId, NotificationType type, NotificationStatus status);
+    boolean existsByRecipientAndTypeAndTaskIdAndCreatedAtAfter(
+            User recipient, NotificationType type, Long taskId, LocalDateTime after);
 }

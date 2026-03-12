@@ -18,6 +18,8 @@ public class TaskDTO {
 
     // Link hoặc file nộp task
     private String submissionLink;
+    private String submittedAt; // ISO datetime khi nộp
+    private boolean late;       // nộp muộn hơn deadline
 
     public TaskDTO() {
     }
@@ -127,5 +129,11 @@ public class TaskDTO {
     public void setSubmissionLink(String submissionLink) {
         this.submissionLink = submissionLink;
     }
+
+    public String getSubmittedAt() { return submittedAt; }
+    public void setSubmittedAt(String submittedAt) { this.submittedAt = submittedAt; }
+
+    public boolean isLate() { return late; }
+    public void setLate(boolean late) { this.late = late; }
 }
 

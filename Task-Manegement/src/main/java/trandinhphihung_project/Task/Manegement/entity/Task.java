@@ -2,6 +2,7 @@ package trandinhphihung_project.Task.Manegement.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tasks")
@@ -35,6 +36,10 @@ public class Task {
     // Link hoặc đường dẫn file khi nộp task
     @Column(name = "submission_link", length = 512)
     private String submissionLink;
+
+    // Thời điểm nộp task
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
 
     public Task() {}
 
@@ -102,4 +107,7 @@ public class Task {
     public void setSubmissionLink(String submissionLink) {
         this.submissionLink = submissionLink;
     }
+
+    public LocalDateTime getSubmittedAt() { return submittedAt; }
+    public void setSubmittedAt(LocalDateTime submittedAt) { this.submittedAt = submittedAt; }
 }

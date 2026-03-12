@@ -4,8 +4,9 @@ export default function ProjectDetail({
   selectedProject, members, tasks, activeTab, setActiveTab,
   currentUser, myRole,
   onOpenEditProject, onOpenDeleteProject, onOpenLeave, onOpenTransfer,
-  onOpenInviteMember, onRemoveMember, onOpenEditRole,
-  onOpenCreateTask, onOpenEditTask, onDeleteTask, onAcceptTask, onOpenSubmitTask,
+  onOpenInviteMember, onOpenConfirmKick, onOpenEditRole,
+  onOpenCreateTask, onOpenEditTask, onOpenConfirmDeleteTask, onAcceptTask, onOpenSubmitTask,
+  onOpenDownloadConfirm,
 }) {
   return (
     <div className="p-7 max-w-4xl">
@@ -138,7 +139,7 @@ export default function ProjectDetail({
                         ⚙️
                       </button>
                       <button
-                        onClick={() => onRemoveMember(m.userId)}
+                        onClick={() => onOpenConfirmKick(m.userId, m.username)}
                         title="Kick khỏi project"
                         className="px-2 py-1 text-red-400/50 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition text-sm"
                       >
@@ -156,7 +157,7 @@ export default function ProjectDetail({
                         ⚙️
                       </button>
                       <button
-                        onClick={() => onRemoveMember(m.userId)}
+                        onClick={() => onOpenConfirmKick(m.userId, m.username)}
                         title="Kick khỏi project"
                         className="px-2 py-1 text-red-400/50 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition text-sm"
                       >
@@ -223,15 +224,22 @@ export default function ProjectDetail({
                           <div className="flex flex-wrap items-center gap-3 text-xs text-white/30">
                             {t.assignedToUsername && <span>👤 {t.assignedToUsername}</span>}
                             {t.deadline && <span>📅 {t.deadline}</span>}
+                            {/* Late badge */}
+                            {t.late && (t.status === "SUBMITTED" || t.status === "DONE") && (
+                              <span className="text-orange-400 bg-orange-500/15 px-2 py-0.5 rounded-full">Nộp muộn</span>
+                            )}
+                            {/* Overdue / unfinished badge */}
+                            {t.deadline && t.deadline < new Date().toISOString().split("T")[0]
+                              && t.status !== "SUBMITTED" && t.status !== "DONE" && (
+                              <span className="text-red-400 bg-red-500/15 px-2 py-0.5 rounded-full">Chưa hoàn thành</span>
+                            )}
                             {t.submissionLink && (
-                              <a
-                                href={t.submissionLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-400/70 hover:text-purple-300 transition"
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onOpenDownloadConfirm(t.submissionLink, t.title); }}
+                                className="text-purple-400/70 hover:text-purple-300 transition underline underline-offset-2"
                               >
-                                📎 Bài nộp
-                              </a>
+                                Bài nộp
+                              </button>
                             )}
                           </div>
                         </div>
@@ -262,7 +270,7 @@ export default function ProjectDetail({
                           )}
                           {myRole === "ADMIN" && (
                             <button
-                              onClick={() => onDeleteTask(t.id)}
+                              onClick={() => onOpenConfirmDeleteTask(t.id, t.title)}
                               className="px-2 py-1 text-red-400/40 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition text-sm"
                             >
                               🗑️

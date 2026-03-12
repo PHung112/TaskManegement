@@ -1,6 +1,12 @@
 import Modal from "../../common/Modal";
 import { inputCls, labelCls, btnPrimary, btnSecondary } from "../../common/formStyles";
 
+const tomorrow = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+})();
+
 export default function EditTaskModal({ taskForm, setTaskForm, onSubmit, onClose, formError }) {
   return (
     <Modal title="Chỉnh sửa task" onClose={onClose}>
@@ -23,10 +29,11 @@ export default function EditTaskModal({ taskForm, setTaskForm, onSubmit, onClose
           />
         </div>
         <div>
-          <label className={labelCls}>Deadline</label>
+          <label className={labelCls}>Deadline <span className="text-white/30">(tùy chọn — tối thiểu ngày mai)</span></label>
           <input
             type="date"
             value={taskForm.deadline}
+            min={tomorrow}
             onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))}
             className={inputCls}
           />
